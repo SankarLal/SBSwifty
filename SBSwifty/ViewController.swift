@@ -23,35 +23,36 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
+        super.viewDidLoad()
         self.title = "HOME"
         setUpUserInterface()
+
     }
     
-    override func viewWillAppear(animated: Bool) {
-        
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
         webServicesGetCall()
     }
     
     // MARK: Perform WebService Call
     func webServicesGetCall () {
         
-        SBSwiftyService.getGeonames(SERVER_NAME as String,
+        SBSwiftyService.getGeonames(GEO_NAMES_SERVICE,
             completion: { (result) -> Void in
                 
-                let responseData:NSDictionary? = result as? NSDictionary
-                print(responseData)
-                if let _ = responseData?.valueForKey("geonames") {
-                    self.responseArray = responseData?.valueForKey("geonames")?.valueForKey("toponymName") as! Array
+                let responseData : NSDictionary? = result as? NSDictionary
+                if let _ = responseData?.value(forKey: "geonames") {
+                    self.responseArray = (responseData?.value(forKey: "geonames") as AnyObject).value(forKey: "toponymName") as! Array
                 } else {
                     self.responseArray = ["USA", "Bahamas", "Brazil", "Canada", "Republic of China", "Cuba", "Egypt", "Fiji", "France", "Germany", "Iceland", "India", "Indonesia", "Jamaica", "Kenya", "Madagascar", "Mexico", "Nepal", "Oman", "Pakistan", "Poland", "Singapore", "Somalia", "Switzerland", "Turkey", "UAE", "Vatican City"]
                 }
                 print(self.responseArray)
-                dispatch_async(dispatch_get_main_queue()) {
+                DispatchQueue.main.async {
                     self.tblView.reloadData()
                 }
                 
             }, failure: { (result) -> Void in
-                print("failure \(result?.localizedDescription)")
+                print("failure \(String(describing: result?.localizedDescription))")
                 
         })
         
@@ -60,13 +61,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // MARK: SetUp User Interface
     func setUpUserInterface() {
         
-        tblView = UITableView(frame: self.view.bounds, style: UITableViewStyle.Plain)
+        tblView = UITableView(frame: self.view.bounds, style: UITableViewStyle.plain)
         tblView.delegate = self
         tblView.dataSource = self
         tblView.showsVerticalScrollIndicator = false
-        tblView.backgroundColor = UIColor.clearColor()
-        tblView.tableHeaderView?.userInteractionEnabled = true
-        tblView.tableFooterView = UIView(frame: CGRectZero)
+        tblView.backgroundColor = UIColor.clear
+        tblView.tableHeaderView?.isUserInteractionEnabled = true
+        tblView.tableFooterView = UIView(frame: CGRect.zero)
         self.view.addSubview(tblView)
         
         searchController = UISearchController (searchResultsController: nil)
@@ -77,13 +78,11 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         searchController!.searchBar.sizeToFit()
         tblView.tableHeaderView = searchController!.searchBar
         self.tblView.reloadData()
-        
-        
     }
     
     // MARK: ALL DELEGATE FUNCTIONS
     // MARK: TableView Delegate And DataSource Function
-    func numberOfSectionsInTableView(tableView: UITableView) -> Int {
+    func numberOfSections(in tableView: UITableView) -> Int {
         if isFilterText {
             return (filterResponseArray.count)
             
@@ -94,17 +93,17 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         
     }
     
-    func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return 1
     }
     
     
-    func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let cellIdentifier = "CELL-IDENTIFIER"
-        var cell: UITableViewCell? = tableView.dequeueReusableCellWithIdentifier(cellIdentifier)
+        var cell: UITableViewCell? = tableView.dequeueReusableCell(withIdentifier: cellIdentifier)
         if cell == nil {
-            cell = UITableViewCell (style: UITableViewCellStyle.Default, reuseIdentifier: cellIdentifier)
+            cell = UITableViewCell (style: UITableViewCellStyle.default, reuseIdentifier: cellIdentifier)
         }
         
         if isFilterText {
@@ -120,14 +119,14 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
     
     
-    func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-        self.tblView.deselectRowAtIndexPath(indexPath, animated: true)
+        self.tblView.deselectRow(at: indexPath, animated: true)
         
     }
     
     // MARK: SearchBar Delegate Function
-    func searchBar(searchBar: UISearchBar, textDidChange searchText: String) {
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         
         if searchText.isEmpty {
             isFilterText = false
@@ -141,32 +140,32 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         
     }
     
-    func searchBarSearchButtonClicked(searchBar: UISearchBar) {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         
     }
     
-    func searchBarCancelButtonClicked(searchBar: UISearchBar) {
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
         isFilterText = false
         tblView.reloadData()
         
     }
     
-    func searchBar(searchBar: UISearchBar, selectedScopeButtonIndexDidChange selectedScope: Int) {
-        updateSearchResultsForSearchController(self.searchController!)
+    func searchBar(_ searchBar: UISearchBar, selectedScopeButtonIndexDidChange selectedScope: Int) {
+        updateSearchResults(for: self.searchController!)
         
     }
     
-    func updateSearchResultsForSearchController(searchController: UISearchController) {
+    func updateSearchResults(for searchController: UISearchController) {
         //        print("updateSearchResultsForSearchController")
         //        self.filterTableViewForEnterText(self.searchController!.searchBar.text!)
         //        tblView.reloadData()
         
     }
     
-    func filterTableViewForEnterText(searchText: String) {
+    func filterTableViewForEnterText(_ searchText: String) {
         
         self.filterResponseArray = self.responseArray.filter({( strCountry : String) -> Bool in
-            let stringForSearch = strCountry.rangeOfString(searchText)
+            let stringForSearch = strCountry.range(of: searchText)
             return (stringForSearch != nil)
         })
     }

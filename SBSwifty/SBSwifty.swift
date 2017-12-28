@@ -2,190 +2,193 @@
 
 import UIKit
 
-// MARK: Declaring Blocks
-typealias OnCompletion = (result: AnyObject?) -> Void
-typealias OnSuccess = (result: AnyObject?) -> Void
-typealias OnFailure = (result: AnyObject?) -> Void
-typealias OnParseComplete = (result: AnyObject?) -> Void
-typealias OnXMLParseComplete = (result: AnyObject?) -> Void
+public enum HTTPMethod : String {
+    case get     = "GET"
+    case post    = "POST"
+    case put     = "PUT"
+    case delete  = "DELETE"
+}
 
-class SBSwifty: NSOperation, NSURLSessionDelegate, NSURLSessionDataDelegate, NSURLSessionTaskDelegate {
+public typealias HTTPHeaders = [String: String]
+public typealias Parameters = [String: Any]
+
+// MARK: Declaring Blocks
+typealias OnCompletion = (_ result: AnyObject?) -> Void
+typealias OnSuccess = (_ result: AnyObject?) -> Void
+typealias OnFailure = (_ result: AnyObject?) -> Void
+typealias OnParseComplete = (_ result: AnyObject?) -> Void
+
+var timeout : Double = 60.0
+
+class SBSwifty : Operation, URLSessionDelegate, URLSessionDataDelegate, URLSessionTaskDelegate {
     // MARK: Declaring Variables
 
-    var onSuccess:OnSuccess?
-    var onFailure:OnFailure?
-    var onParseComplete:OnParseComplete?
-    var _headers:NSMutableDictionary?
-    var receivedData:NSMutableData?
+    var onSuccess : OnSuccess?
+    var onFailure : OnFailure?
+    var onParseComplete : OnParseComplete?
+    var _headers : [ String : AnyObject]?
+    var receivedData : Data?
 
-    var timeout:Double? = 60.0
-    var usesCache: Bool?
-    var responseCode:Int?
+    var usesCache : Bool?
+    var responseCode : Int?
     
-    // MARK: Assign Request Headers Method
-    func setHeaders(headers:NSMutableDictionary) {
-        _headers = headers
+    func sbSwiftyRequest(_ url : String,
+                        method: HTTPMethod = .get,
+                        parameters: Parameters? = nil,
+                        headers: HTTPHeaders? = nil,
+                        success : @escaping OnSuccess,
+                        failure : @escaping OnFailure) {
         
-    }
-        // MARK: JSON Get Method
-    func executeJSONGet(url:NSString, success:OnSuccess, failure:OnFailure) {
-
-        onSuccess = success;
-        onFailure = failure;
-        let set : NSCharacterSet = NSCharacterSet.URLQueryAllowedCharacterSet()
-        let uRL = NSURL (string: url.stringByAddingPercentEncodingWithAllowedCharacters(set)!)
-        let  request:NSMutableURLRequest? = NSMutableURLRequest (URL: uRL!, cachePolicy: NSURLRequestCachePolicy.UseProtocolCachePolicy, timeoutInterval: timeout!)
-        request!.HTTPMethod = "GET"
-        request!.addValue("application/json", forHTTPHeaderField:"Content-Type")
-        let config = NSURLSessionConfiguration.defaultSessionConfiguration()
-        let session = NSURLSession(configuration: config, delegate: self, delegateQueue: nil)
-        let task = session.dataTaskWithRequest(request!)
-        task.resume()
-
+        onSuccess = success
+        onFailure = failure
+        sessionRequest(url,
+                       method: method,
+                       parameters: parameters,
+                       headers: headers)
     }
     
-    
-    // MARK: JSON Post Method
-    func executeJSONPost(url:NSString, requestBody:NSData?, success:OnSuccess, failure:OnFailure) {
-        onSuccess = success;
-        onFailure = failure;
-        let set : NSCharacterSet = NSCharacterSet.URLQueryAllowedCharacterSet()
-        let uRL = NSURL (string: url.stringByAddingPercentEncodingWithAllowedCharacters(set)!)
-        let  request:NSMutableURLRequest? = NSMutableURLRequest (URL: uRL!, cachePolicy: NSURLRequestCachePolicy.UseProtocolCachePolicy, timeoutInterval: timeout!)
-        request!.HTTPMethod = "POST"
-        request!.HTTPBody = requestBody!
-        request!.addValue("application/json; charset=utf-8", forHTTPHeaderField:"Content-Type")
-        let config = NSURLSessionConfiguration.defaultSessionConfiguration()
-        let session = NSURLSession(configuration: config, delegate: self, delegateQueue: nil)
-        let task = session.dataTaskWithRequest(request!)
-        task.resume()
+   private func sessionRequest(_ url: String,
+                        method: HTTPMethod = .get,
+                        parameters: Parameters? = nil,
+                        headers: HTTPHeaders? = nil)  {
         
-    }
-    
-    // MARK: JSON Put Method
-    func executeJSONPut(url:NSString,requestBody:NSData, success:OnSuccess, failure:OnFailure) {
-        onSuccess = success;
-        onFailure = failure;
-        let set : NSCharacterSet = NSCharacterSet.URLQueryAllowedCharacterSet()
-        let uRL = NSURL (string: url.stringByAddingPercentEncodingWithAllowedCharacters(set)!)
-        let  request:NSMutableURLRequest? = NSMutableURLRequest (URL: uRL!, cachePolicy: NSURLRequestCachePolicy.UseProtocolCachePolicy, timeoutInterval: timeout!)
-        request!.HTTPMethod = "PUT"
-        request!.HTTPBody = requestBody
-        request!.addValue("application/json; charset=utf-8", forHTTPHeaderField:"Content-Type")
-        let config = NSURLSessionConfiguration.defaultSessionConfiguration()
-        let session = NSURLSession(configuration: config, delegate: self, delegateQueue: nil)
-        let task = session.dataTaskWithRequest(request!)
-        task.resume()
+        var originalRequest: URLRequest = URLRequest(url: url, method: method, headers: headers, requestBody : parseData(parameters))
         
-    }
+        if originalRequest.value(forHTTPHeaderField: "Content-Type") == nil {
+            originalRequest.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        }
 
-    // MARK: JSON Delete Method
-    func executeJSONDelete(url:NSString, success:OnSuccess, failure:OnFailure) {
-        onSuccess = success;
-        onFailure = failure;
-        let set : NSCharacterSet = NSCharacterSet.URLQueryAllowedCharacterSet()
-        let uRL = NSURL (string: url.stringByAddingPercentEncodingWithAllowedCharacters(set)!)
-        let  request:NSMutableURLRequest? = NSMutableURLRequest (URL: uRL!, cachePolicy: NSURLRequestCachePolicy.UseProtocolCachePolicy, timeoutInterval: timeout!)
-        request!.HTTPMethod = "DELETE"
-        request!.addValue("application/json", forHTTPHeaderField:"Content-Type")
-        let config = NSURLSessionConfiguration.defaultSessionConfiguration()
-        let session = NSURLSession(configuration: config, delegate: self, delegateQueue: nil)
-        let task = session.dataTaskWithRequest(request!)
+        let config = URLSessionConfiguration.default
+        let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        let task = session.dataTask(with: originalRequest)
         task.resume()
-        
-        
     }
-
+    
     // MARK: NSURLSession Data Delegate Function
-    func URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveResponse response: NSURLResponse, completionHandler: (NSURLSessionResponseDisposition) -> Void) {
-        
+    func urlSession(_ session : URLSession, dataTask : URLSessionDataTask, didReceive response : URLResponse, completionHandler : @escaping (URLSession.ResponseDisposition) -> Void) {
         receivedData = nil;
-        receivedData = NSMutableData ()
-        receivedData?.length = 0
+        receivedData = Data()
+        receivedData?.count = 0
         
-        var httpResponse:NSHTTPURLResponse? = NSHTTPURLResponse()
-        if let getHttpResponse = response as? NSHTTPURLResponse {
+        var httpResponse:HTTPURLResponse? = HTTPURLResponse()
+        if let getHttpResponse = response as? HTTPURLResponse {
             httpResponse = getHttpResponse
         }
-        assert(httpResponse!.isKindOfClass(NSHTTPURLResponse))
+        assert(httpResponse!.isKind(of: HTTPURLResponse.self))
         responseCode = httpResponse?.statusCode
 
         if responseCode != 200 {
-            
-            let userInfo:NSMutableDictionary? = NSMutableDictionary()
-            userInfo!.setValue(NSString(format: "Incorrect response code %ld received.",httpResponse!.statusCode), forKey: NSLocalizedDescriptionKey)
-            userInfo!.setValue(dataTask.originalRequest?.URL?.absoluteString, forKey: NSURLErrorFailingURLStringErrorKey)
-            let error:NSError? = NSError(domain: (dataTask.originalRequest?.URL?.host)!, code: -10001, userInfo: userInfo! as [NSObject : AnyObject])
+            let userInfo : [String : AnyObject]? = [
+                NSLocalizedDescriptionKey : String.init(format: "Incorrect response code %ld received", (httpResponse?.statusCode)!) as AnyObject,
+                NSURLErrorFailingURLStringErrorKey : dataTask.originalRequest?.url?.absoluteString as AnyObject
+            ]
+            let error : NSError? = NSError(domain: (dataTask.originalRequest?.url?.host)!, code: -10001, userInfo: userInfo! as [AnyHashable: Any] as? [String : Any])
             
             if let _ = onFailure {
-                onFailure!(result:error)
+                onFailure!(error)
                 onFailure = nil
-                
             }
-
         }
-
-        completionHandler(.Allow)
-
+        completionHandler(.allow)
     }
     
-    func URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveData data: NSData) {
-        receivedData?.appendData(data)
-        
+    func urlSession(_ session : URLSession, dataTask : URLSessionDataTask, didReceive data : Data) {
+        receivedData?.append(data)
     }
     
     // MARK: NSURLSession Task Delegate Function
-    func URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError error: NSError?) {
-       
+    func urlSession(_ session : URLSession, task : URLSessionTask, didCompleteWithError error : Error?) {
         guard error == nil else {
-            
             if let _ = onFailure {
-                onFailure!(result:error)
-                
+                onFailure!(error as AnyObject?)
             }
             onFailure = nil
-            
             return
         }
         
-        var responseString:NSString? = NSString (data: receivedData!, encoding: NSUTF8StringEncoding)!
+        var responseString : String? = String (data: receivedData! as Data, encoding: String.Encoding(rawValue: String.Encoding.utf8.rawValue))!
         if responseString == nil {
-            let tempString:NSString? = NSString (data: receivedData!, encoding: NSUTF8StringEncoding)!
-            responseString = tempString;
-            
+            let tempString : String? = String (data: receivedData! as Data, encoding: String.Encoding(rawValue: String.Encoding.utf8.rawValue))!
+            responseString = tempString
         }
         
         if let _ = onSuccess {
-            onSuccess!(result:responseString)
+            onSuccess!(responseString as AnyObject)
             onSuccess = nil
         }
 
     }
     
-    func URLSession(session: NSURLSession, didReceiveChallenge challenge: NSURLAuthenticationChallenge, completionHandler: (NSURLSessionAuthChallengeDisposition, NSURLCredential?) -> Void) {
-        print("didReceiveChallenge")
-
+    func urlSession(_ session : URLSession, didReceive challenge : URLAuthenticationChallenge, completionHandler : @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+      
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            let credential : URLCredential = URLCredential.init(trust: challenge.protectionSpace.serverTrust!)
+            completionHandler(URLSession.AuthChallengeDisposition.useCredential,credential)
+        }
     }
     
     
     // MARK: Parse JSON
-    func parseJSON (data:NSString, parseComplete:OnParseComplete) {
-        onParseComplete = parseComplete;
-        var objectData:NSData? = data.dataUsingEncoding(NSUTF8StringEncoding)
-        let jsonDictionary: NSDictionary? = (try! NSJSONSerialization.JSONObjectWithData(objectData!, options:NSJSONReadingOptions.MutableContainers)) as? NSDictionary
+    func parseJSON (_ data : String, parseComplete : @escaping OnParseComplete) {
+        onParseComplete = parseComplete
+        var objectData : Data? = data.data(using: String.Encoding(rawValue: String.Encoding.utf8.rawValue))
+        let jsonDictionary : [String : AnyObject]? = (try! JSONSerialization.jsonObject(with: objectData!, options:JSONSerialization.ReadingOptions.mutableContainers)) as? [String : AnyObject]
         objectData = nil
+
+        print("jsonDictionary", jsonDictionary ?? "")
         
         if let _ = onParseComplete {
             if jsonDictionary == nil {
-                onParseComplete!(result:nil)
+                onParseComplete!(nil)
             } else {
-             onParseComplete!(result:jsonDictionary)
+                onParseComplete!(jsonDictionary as AnyObject)
             }
             onParseComplete = nil
-            
+        }
+    }
+    
+    func parseData(_ dictionary : [String: Any]?) -> Data? {
+        
+        guard let _ = dictionary else {
+            return nil
+        }
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: dictionary!, options: .prettyPrinted)
+            return jsonData
+        }
+        catch {
+            print("ERROR IN DECODER")
+            return nil
+        }
+    }
+}
+
+extension URLRequest {
+    
+    public init(url : String, method : HTTPMethod, headers : HTTPHeaders? = nil, requestBody: Data? = nil) {
+        
+        let uRL = URL(string: url.addingPercentEncoding())
+
+        self.init(url: uRL!, cachePolicy: .useProtocolCachePolicy, timeoutInterval: timeout)
+        httpMethod = method.rawValue
+        
+        if let headers = headers {
+            for (headerField, headerValue) in headers {
+                setValue(headerValue, forHTTPHeaderField: headerField)
+            }
+        }
+        
+        if let _ = requestBody {
+            self.httpBody = requestBody!
         }
         
     }
-   
 }
 
+extension String {
+    //MARK: Adding Percent Encoding
+    func addingPercentEncoding() -> String {
+        return self.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+    }
+}
